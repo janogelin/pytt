@@ -1,0 +1,8 @@
+https://www.google.com
+invalid-url
+https://www.github.com
+not-a-url
+http://localhost:8080
+ftp://invalid.protocol
+https://www.python.org
+123.45.67.89 

@@ -1,0 +1,9 @@
+apple 5
+banana 3
+apple 2
+orange 4
+banana 1
+apple 3
+cherry 2
+cherry 3
+apple 1 

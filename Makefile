@@ -1,13 +1,10 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g
-TARGET = url_list
+CFLAGS = -Wall -Wextra
 
-all: $(TARGET)
+all: zombie
 
-$(TARGET): url_list.c
-	$(CC) $(CFLAGS) -o $(TARGET) url_list.c
+zombie: zombie.c
+	$(CC) $(CFLAGS) -o zombie zombie.c
 
 clean:
-	rm -f $(TARGET)
-
-.PHONY: all clean 
+	rm -f zombie 

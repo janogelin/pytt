@@ -4,13 +4,14 @@
 set -e
 
 usage() {
-    echo "Usage: $0 [option]"
+    echo "Usage: $0 [option] [port]"
     echo "Options:"
     echo "  1   netstat -a   (all sockets)"
     echo "  2   netstat -at  (all TCP sockets)"
     echo "  3   netstat -l   (listening sockets)"
     echo "  4   netstat -lx  (listening UNIX sockets)"
     echo "  5   netstat -s   (statistics)"
+    echo "  6   netstat -an | grep :<port>   (info for specific port, requires port as 2nd argument)"
     echo "  h   Show this help message"
     exit 1
 }
@@ -39,6 +40,16 @@ case "$1" in
     5)
         echo "> netstat -s"
         netstat -s
+        ;;
+    6)
+        #n numeric busy machine flag
+        if [[ -z "$2" ]]; then
+            echo "> netstat -an (no port specified)"
+            netstat -an
+        else
+            echo "> netstat -an | grep :$2"
+            netstat -an | grep ":$2"
+        fi
         ;;
     h|--help|-h)
         usage

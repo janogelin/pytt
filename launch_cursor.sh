@@ -22,8 +22,7 @@ fi
 if [ ! -x "$CURSOR_APP" ]; then
     echo "Error: Cursor.AppImage is not executable"
     echo "Attempting to make it executable..."
-    chmod +x "$CURSOR_APP"
-    if [ $? -ne 0 ]; then
+    if ! chmod +x "$CURSOR_APP"; then
         echo "Failed to make Cursor.AppImage executable. Please check permissions."
         exit 2
     fi
@@ -39,8 +38,7 @@ fi
 
 # Create bin directory if it doesn't exist
 if [ ! -d "$HOME/bin" ]; then
-    mkdir -p "$HOME/bin"
-    if [ $? -ne 0 ]; then
+    if ! mkdir -p "$HOME/bin"; then
         echo "Error: Failed to create $HOME/bin directory"
         exit 4
     fi
@@ -48,16 +46,14 @@ fi
 
 # Remove existing symlink if it exists
 if [ -L "$SYMLINK_PATH" ]; then
-    rm "$SYMLINK_PATH"
-    if [ $? -ne 0 ]; then
+    if ! rm "$SYMLINK_PATH"; then
         echo "Error: Failed to remove existing symlink"
         exit 5
     fi
 fi
 
 # Create new symlink
-ln -s "$CURSOR_APP" "$SYMLINK_PATH"
-if [ $? -ne 0 ]; then
+if ! ln -s "$CURSOR_APP" "$SYMLINK_PATH"; then
     echo "Error: Failed to create symlink"
     exit 6
 fi

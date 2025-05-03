@@ -1,15 +1,17 @@
 # mini_webserver
 
+> **WARNING: This server is for demonstration and educational purposes only. It is NOT secure and must NOT be used for any production or internet-facing deployment.**
+
 A minimal multi-process HTTP server in C that serves only static HTML files from a single directory.
 
 ## Features
 - Serves only `.html` files from a specified directory
 - Only supports GET requests
-- Listens on port 8080
+- Listens on port 8881 by default (can be set via command line)
 - Blocks directory traversal (.. is blocked)
 - Always serves `text/html` MIME type
 - Multi-process: forks a child for each client
-- FIFO queue: logs each request path to a named pipe (`mini_webserver_fifo`)
+- Logs each request path to `access.log`
 
 ## Build
 
@@ -23,7 +25,7 @@ make
 Start the server, serving files from a directory (e.g., `public_html`):
 
 ```sh
-./mini_webserver <directory>
+./mini_webserver <directory> [port]
 ```
 
 Example:
@@ -31,18 +33,18 @@ Example:
 ./mini_webserver public_html
 ```
 
-Visit [http://localhost:8080/index.html](http://localhost:8080/index.html) in your browser or use curl:
+Visit [http://localhost:8881/index.html](http://localhost:8881/index.html) in your browser or use curl:
 
 ```sh
-curl http://localhost:8080/index.html
+curl http://localhost:8881/index.html
 ```
 
-## FIFO Logging
+## Logging
 
-Each request path is logged to a named pipe (`mini_webserver_fifo`). You can view the log in real time with:
+Each request path is logged to `access.log` in the current directory. You can view the log in real time with:
 
 ```sh
-tail -f mini_webserver_fifo
+tail -f access.log
 ```
 
 ## Test
@@ -58,10 +60,10 @@ This script will:
 - Start the server in the background
 - Make a request to `/index.html`
 - Check that the HTML content is served
-- Check that the request path is logged to the FIFO
+- Check that the request path is logged to `access.log`
 - Stop the server
 
 ## Notes
-- The server is single-port (8080) and single-root (one directory).
+- The server is single-port (default 8881) and single-root (one directory).
 - Only `.html` files are served; all other requests return 404.
 - The server is for demonstration/educational use and is not secure for production. 

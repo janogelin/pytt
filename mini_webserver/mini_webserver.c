@@ -9,18 +9,17 @@
  * - Listens on a configurable port (default: 8881)
  * - No directory traversal (.. is blocked)
  * - No MIME type detection (always serves text/html)
- * - Multi-process: forks a child for each client
- * - FIFO queue: logs each request path to a named pipe (mini_webserver_fifo)
+ * - Multi-process: pre-forks N children (default: 1, configurable)
+ * - Logs each request path to access.log
  *
  * Usage:
- *   ./mini_webserver <directory> [port]
+ *   ./mini_webserver <directory> [port] [num_children]
  *
  * Example:
- *   ./mini_webserver ./public_html 8881
+ *   ./mini_webserver ./public_html 8881 4
  *
  * To test:
  *   curl http://localhost:8881/index.html
- *   cat mini_webserver_fifo   # to see the logged requests
  *
  * Build:
  *   gcc -Wall -Wextra -o mini_webserver mini_webserver.c
@@ -38,11 +37,14 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <dirent.h>
 
 #define DEFAULT_PORT 8881
 #define BUF_SIZE 4096
 #define MAX_PATH 512
-#define FIFO_NAME "mini_webserver_fifo"
+#define LOG_FILE "access.log"
+#define DEFAULT_CHILDREN 1
 
 // Send a simple HTTP response with a given status and message
 void send_response(int client_fd, int status, const char *msg) {
@@ -79,34 +81,133 @@ void serve_file(int client_fd, const char *filepath) {
     close(fd);
 }
 
+// Send a directory listing as an HTML page (only .html files)
+void send_directory_listing(int client_fd, const char *dirpath, const char *req_path) {
+    DIR *dir = opendir(dirpath);
+    if (!dir) {
+        send_response(client_fd, 404, "<h1>404 Not Found</h1>");
+        return;
+    }
+    char html[BUF_SIZE * 2];
+    snprintf(html, sizeof(html), "<html><head><title>Directory listing for %s</title></head><body><h1>Directory listing for %s</h1><ul>", req_path, req_path);
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            const char *name = entry->d_name;
+            size_t len = strlen(name);
+            if (len > 5 && strcmp(name + len - 5, ".html") == 0) {
+                char link[MAX_PATH];
+                if (strcmp(req_path, "/") == 0) {
+                    snprintf(link, sizeof(link), "/%s", name);
+                } else {
+                    snprintf(link, sizeof(link), "%s/%s", req_path, name);
+                }
+                strncat(html, "<li><a href=\"", sizeof(html) - strlen(html) - 1);
+                strncat(html, link, sizeof(html) - strlen(html) - 1);
+                strncat(html, "\">", sizeof(html) - strlen(html) - 1);
+                strncat(html, name, sizeof(html) - strlen(html) - 1);
+                strncat(html, "</a></li>", sizeof(html) - strlen(html) - 1);
+            }
+        }
+    }
+    closedir(dir);
+    strncat(html, "</ul></body></html>", sizeof(html) - strlen(html) - 1);
+    send_response(client_fd, 200, html);
+}
+
 // SIGCHLD handler to reap zombie children
 void sigchld_handler(int signo) {
     (void)signo;
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
+void child_loop(int server_fd, char *base_dir) {
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    while (1) {
+        int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+        if (client_fd < 0) {
+            perror("accept");
+            continue;
+        }
+        char req[BUF_SIZE] = {0};
+        read(client_fd, req, sizeof(req) - 1);
+        // Only handle GET requests
+        if (strncmp(req, "GET ", 4) != 0) {
+            send_response(client_fd, 400, "<h1>400 Bad Request</h1>");
+            close(client_fd);
+            continue;
+        }
+        // Parse the requested path
+        char path[MAX_PATH] = {0};
+        sscanf(req + 4, "%s", path);
+        // Block directory traversal
+        if (strstr(path, "..")) {
+            send_response(client_fd, 400, "<h1>400 Bad Request</h1>");
+            close(client_fd);
+            continue;
+        }
+        // Build the full file path
+        char filepath[MAX_PATH];
+        snprintf(filepath, sizeof(filepath), "%s/%s", base_dir, path+1); // skip leading /
+        // Log the request path to access.log
+        FILE *logf = fopen(LOG_FILE, "a");
+        if (logf) {
+            fprintf(logf, "%s\n", path);
+            fclose(logf);
+        }
+        struct stat st;
+        if (stat(filepath, &st) == 0 && S_ISREG(st.st_mode) && strstr(path, ".html")) {
+            // Serve the file if it exists and is .html
+            serve_file(client_fd, filepath);
+        } else {
+            // If it's a directory or file doesn't exist, serve directory listing
+            char dirpath[MAX_PATH];
+            if (stat(filepath, &st) == 0 && S_ISDIR(st.st_mode)) {
+                // Requested path is a directory
+                snprintf(dirpath, sizeof(dirpath), "%s/%s", base_dir, path+1);
+            } else {
+                // If root or file not found, try to list the directory containing the file
+                if (strcmp(path, "/") == 0) {
+                    snprintf(dirpath, sizeof(dirpath), "%s", base_dir);
+                } else {
+                    // Remove the last component to get the directory
+                    char *last_slash = strrchr(path, '/');
+                    if (last_slash && last_slash != path) {
+                        size_t dirlen = last_slash - path;
+                        char subdir[MAX_PATH];
+                        strncpy(subdir, path + 1, dirlen - 1); // skip leading /
+                        subdir[dirlen - 1] = '\0';
+                        snprintf(dirpath, sizeof(dirpath), "%s/%s", base_dir, subdir);
+                    } else {
+                        snprintf(dirpath, sizeof(dirpath), "%s", base_dir);
+                    }
+                }
+            }
+            send_directory_listing(client_fd, dirpath, path);
+        }
+        close(client_fd);
+    }
+}
+
 int main(int argc, char *argv[]) {
-    if (argc < 2 || argc > 3) {
-        fprintf(stderr, "Usage: %s <directory> [port]\n", argv[0]);
+    if (argc < 2 || argc > 4) {
+        fprintf(stderr, "Usage: %s <directory> [port] [num_children]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     char *base_dir = argv[1];
-    int port = (argc == 3) ? atoi(argv[2]) : DEFAULT_PORT;
+    int port = (argc >= 3) ? atoi(argv[2]) : DEFAULT_PORT;
+    int num_children = (argc == 4) ? atoi(argv[3]) : DEFAULT_CHILDREN;
     if (port <= 0 || port > 65535) {
         fprintf(stderr, "Invalid port: %d\n", port);
         exit(EXIT_FAILURE);
     }
-    int server_fd, client_fd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_len = sizeof(client_addr);
-
-    // Create FIFO for logging if it doesn't exist
-    if (access(FIFO_NAME, F_OK) == -1) {
-        if (mkfifo(FIFO_NAME, 0666) < 0) {
-            perror("mkfifo");
-            exit(EXIT_FAILURE);
-        }
+    if (num_children <= 0 || num_children > 128) {
+        fprintf(stderr, "Invalid number of children: %d\n", num_children);
+        exit(EXIT_FAILURE);
     }
+    int server_fd;
+    struct sockaddr_in server_addr;
 
     // Set up SIGCHLD handler to avoid zombies
     struct sigaction sa;
@@ -144,61 +245,24 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     printf("mini_webserver: Serving %s on http://localhost:%d\n", base_dir, port);
-    printf("mini_webserver: Logging requests to FIFO: %s\n", FIFO_NAME);
+    printf("mini_webserver: Logging requests to %s\n", LOG_FILE);
+    printf("mini_webserver: Forking %d child process(es)\n", num_children);
 
-    while (1) {
-        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
-        if (client_fd < 0) {
-            perror("accept");
-            continue;
-        }
+    // Pre-fork children
+    for (int i = 0; i < num_children; ++i) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
-            close(client_fd);
-            continue;
+            exit(EXIT_FAILURE);
         }
-        if (pid == 0) { // Child process
-            close(server_fd); // Child doesn't need the listening socket
-            char req[BUF_SIZE] = {0};
-            read(client_fd, req, sizeof(req) - 1);
-            // Only handle GET requests
-            if (strncmp(req, "GET ", 4) != 0) {
-                send_response(client_fd, 400, "<h1>400 Bad Request</h1>");
-                close(client_fd);
-                exit(0);
-            }
-            // Parse the requested path
-            char path[MAX_PATH] = {0};
-            sscanf(req + 4, "%s", path);
-            // Block directory traversal
-            if (strstr(path, "..")) {
-                send_response(client_fd, 400, "<h1>400 Bad Request</h1>");
-                close(client_fd);
-                exit(0);
-            }
-            // Only serve .html files
-            if (!strstr(path, ".html")) {
-                send_response(client_fd, 404, "<h1>404 Not Found</h1>");
-                close(client_fd);
-                exit(0);
-            }
-            // Build the full file path
-            char filepath[MAX_PATH];
-            snprintf(filepath, sizeof(filepath), "%s/%s", base_dir, path+1); // skip leading /
-            // Log the request path to the FIFO
-            int fifo_fd = open(FIFO_NAME, O_WRONLY | O_NONBLOCK);
-            if (fifo_fd >= 0) {
-                dprintf(fifo_fd, "%s\n", path);
-                close(fifo_fd);
-            }
-            serve_file(client_fd, filepath);
-            close(client_fd);
+        if (pid == 0) {
+            // Child process: handle requests
+            child_loop(server_fd, base_dir);
             exit(0);
-        } else {
-            close(client_fd); // Parent doesn't need the connected socket
         }
     }
+    // Parent: just wait forever
+    while (1) pause();
     close(server_fd);
     return 0;
 } 

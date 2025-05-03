@@ -175,10 +175,32 @@ void child_loop(int server_fd, char *base_dir) {
                     char *last_slash = strrchr(path, '/');
                     if (last_slash && last_slash != path) {
                         size_t dirlen = last_slash - path;
-                        char subdir[MAX_PATH];
-                        strncpy(subdir, path + 1, dirlen - 1); // skip leading /
-                        subdir[dirlen - 1] = '\0';
-                        snprintf(dirpath, sizeof(dirpath), "%s/%s", base_dir, subdir);
+                        if (dirlen > 1 && dirlen < MAX_PATH) {
+                            char subdir[MAX_PATH];
+                            size_t subdirlen = dirlen - 1; // skip leading /
+                            if (subdirlen >= sizeof(subdir)) subdirlen = sizeof(subdir) - 1;
+                            strncpy(subdir, path + 1, subdirlen);
+                            subdir[subdirlen] = '\0';
+                            size_t total_len = strlen(base_dir) + 1 + strlen(subdir) + 1;
+                            if (total_len < sizeof(dirpath)) {
+                                // Use strncpy/strncat to avoid snprintf truncation warning
+                                dirpath[0] = '\0';
+                                strncpy(dirpath, base_dir, sizeof(dirpath) - 1);
+                                dirpath[sizeof(dirpath) - 1] = '\0';
+                                size_t curlen = strlen(dirpath);
+                                if (curlen < sizeof(dirpath) - 1) {
+                                    dirpath[curlen] = '/';
+                                    dirpath[curlen + 1] = '\0';
+                                    strncat(dirpath, subdir, sizeof(dirpath) - strlen(dirpath) - 1);
+                                }
+                            } else {
+                                // fallback to base_dir if too long
+                                strncpy(dirpath, base_dir, sizeof(dirpath) - 1);
+                                dirpath[sizeof(dirpath) - 1] = '\0';
+                            }
+                        } else {
+                            snprintf(dirpath, sizeof(dirpath), "%s", base_dir);
+                        }
                     } else {
                         snprintf(dirpath, sizeof(dirpath), "%s", base_dir);
                     }

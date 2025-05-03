@@ -63,6 +63,17 @@ This script will:
 - Check that the request path is logged to `access.log`
 - Stop the server
 
+## Docker
+
+You can run mini_webserver using Docker from Docker Hub:
+
+```sh
+docker pull jangelinav/mini_webserver:latest
+docker run -p 8881:8881 jangelinav/mini_webserver:latest
+```
+
+This will serve files from the default `public_html` directory on port 8881.
+
 ## Notes
 - The server is single-port (default 8881) and single-root (one directory).
 - Only `.html` files are served; all other requests return 404.

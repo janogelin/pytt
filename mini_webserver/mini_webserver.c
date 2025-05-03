@@ -92,8 +92,11 @@ void send_directory_listing(int client_fd, const char *dirpath, const char *req_
     snprintf(html, sizeof(html), "<html><head><title>Directory listing for %s</title></head><body><h1>Directory listing for %s</h1><ul>", req_path, req_path);
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) {
-            const char *name = entry->d_name;
+        const char *name = entry->d_name;
+        char fullpath[MAX_PATH];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dirpath, name);
+        struct stat st;
+        if (stat(fullpath, &st) == 0 && S_ISREG(st.st_mode)) {
             size_t len = strlen(name);
             if (len > 5 && strcmp(name + len - 5, ".html") == 0) {
                 char link[MAX_PATH];

@@ -8,6 +8,9 @@ PORT=8881
 # Build the server
 make
 
+# Remove old log
+rm -f access.log
+
 # Start the server in the background
 ./mini_webserver public_html $PORT &
 SERVER_PID=$!
@@ -26,11 +29,11 @@ else
     exit 1
 fi
 
-# Check the FIFO log
-if grep -q "/index.html" mini_webserver_fifo; then
-    echo "Test passed: Request path logged to FIFO."
+# Check the access.log for the request path
+if grep -q "/index.html" access.log; then
+    echo "Test passed: Request path logged to access.log."
 else
-    echo "Test failed: Request path not logged to FIFO."
+    echo "Test failed: Request path not logged to access.log."
     kill $SERVER_PID
     wait $SERVER_PID 2>/dev/null || true
     exit 1
@@ -51,4 +54,5 @@ fi
 
 # Kill the server
 kill $SERVER_PID
-wait $SERVER_PID 2>/dev/null || true 
+wait $SERVER_PID 2>/dev/null || true
+rm -f access.log 

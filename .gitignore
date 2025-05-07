@@ -6,4 +6,7 @@ __pycache__/
 venv/
 **/venv/
 .env/
-**/.env/ 
+**/.env/
+*.parquet
+*.dxf
+*.svg 

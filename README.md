@@ -29,7 +29,7 @@ python3 qrgen_for3dprint.py --url https://www.example.com --output example.svg
 ```sh
 python3 qrgen_for3dprint.py --step --url https://www.example.com --output example.step
 ```
-- Import the STEP file into slicer (e.g. PrusaSlicer) directly.
+- Import the STEP file into slicer (e.g. PrusaSlicer) directly. Requires color change by hight or MMU multicolor unit for Prusa.
 
 ### Generate STEP with Cylinder Base and Railing
 ```sh

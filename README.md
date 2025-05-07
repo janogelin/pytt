@@ -64,4 +64,5 @@ python3 qrgen_for3dprint.py --step --cylinder --cylinder-diameter 60 --qr-height
 
 ---
 
-**Author:** (your name) 
+**Author:** Jan Gelin  
+**Contact:** jan@gelin.us 

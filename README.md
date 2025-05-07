@@ -29,7 +29,7 @@ python3 qrgen_for3dprint.py --url https://www.example.com --output example.svg
 ```sh
 python3 qrgen_for3dprint.py --step --url https://www.example.com --output example.step
 ```
-- Import the STEP file into Fusion 360 (Insert > Insert CAD). Each QR code box is already extruded.
+- Import the STEP file into slicer (e.g. PrusaSlicer) directly.
 
 ### Generate STEP with Cylinder Base and Railing
 ```sh

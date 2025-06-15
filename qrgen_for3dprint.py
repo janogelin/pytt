@@ -282,7 +282,7 @@ def main():
     parser.add_argument('--cylinder', action='store_true',
                         help="Add a cylinder base under the QR code in the STEP file (only with --step)")
     parser.add_argument('--cylinder-height', type=float, default=2.0,
-                        help="Height of the cylinder base in mm (default: 3.0, only with --cylinder)")
+                        help="Height of the cylinder base in mm (default: 2.0, only with --cylinder)")
     parser.add_argument('--cylinder-margin', type=float, default=5.0,
                         help="Margin around the QR code on the cylinder in mm (default: 5.0, only with --cylinder)")
     parser.add_argument('--cylinder-diameter', type=float, default=None,
